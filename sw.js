@@ -1,4 +1,4 @@
-const CACHE = 'midinero-v2';
+const CACHE = 'midinero-v3';
 const ASSETS = [
   './', './index.html', './styles.css', './app.js', './fix-recurring.js', './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'
