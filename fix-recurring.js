@@ -39,8 +39,8 @@
       actions: `${id ? '<button type="button" class="danger-btn" id="deleteRecurring">Eliminar</button>' : ''}<button type="button" class="secondary" id="cancelModal">Cancelar</button><button type="button" class="primary" id="saveRecurring">Guardar</button>`
     });
 
-    $$('[data-rtype]', '#modal').forEach(b => b.onclick = () => {
-      $$('[data-rtype]', '#modal').forEach(x => x.classList.remove('active'));
+    $$('#modal [data-rtype]').forEach(b => b.onclick = () => {
+      $$('#modal [data-rtype]').forEach(x => x.classList.remove('active'));
       b.classList.add('active');
       $('#rType').value = b.dataset.rtype;
     });
