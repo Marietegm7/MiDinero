@@ -1,0 +1,65 @@
+MIDINERO — INSTALACIÓN EN IPHONE
+=================================
+
+QUÉ ES
+------
+MiDinero es una PWA (web app instalable). No conecta con bancos ni mueve dinero.
+Los datos que introduces se guardan localmente en el navegador de tu dispositivo.
+
+IMPORTANTE
+----------
+Para instalarla como app en iPhone, primero debe estar publicada en una dirección HTTPS.
+Una forma gratuita y estándar es GitHub Pages.
+
+PUBLICAR GRATIS CON GITHUB PAGES
+--------------------------------
+1. Crea una cuenta gratuita en github.com si no tienes una.
+2. Crea un repositorio nuevo, por ejemplo: midinero.
+3. Sube TODO el contenido de esta carpeta al repositorio:
+   - index.html
+   - app.js
+   - styles.css
+   - manifest.webmanifest
+   - sw.js
+   - carpeta icons
+4. En el repositorio entra en Settings > Pages.
+5. En Build and deployment selecciona:
+   Source: Deploy from a branch
+   Branch: main
+   Folder: /(root)
+6. Guarda los cambios.
+7. GitHub mostrará la dirección pública de la web.
+
+NOTA DE PRIVACIDAD
+------------------
+Si usas GitHub Pages con GitHub Free, el repositorio debe ser público. Eso hace público
+EL CÓDIGO de la aplicación, no tus movimientos ni tus cantidades: esos datos se crean
+después en tu iPhone y se guardan localmente en el navegador.
+
+INSTALAR EN IPHONE
+------------------
+1. Abre la dirección publicada usando Safari en el iPhone.
+2. Toca Compartir.
+3. Toca “Añadir a pantalla de inicio”.
+4. Activa “Abrir como app web” si aparece esa opción.
+5. Toca Añadir.
+
+COPIAS DE SEGURIDAD
+-------------------
+Dentro de MiDinero: Más > Copia de seguridad > Exportar copia.
+Guarda de vez en cuando el archivo JSON en Archivos/iCloud Drive.
+Si borras los datos de Safari o cambias de iPhone, usa Importar copia.
+
+FUNCIONES INCLUIDAS
+-------------------
+- Saldo real y ajustes de saldo
+- Ingresos y gastos
+- Categorías editables
+- Límites mensuales por categoría
+- Objetivos de ahorro con dinero reservado/liberado
+- Colchón mínimo protegido
+- Ingresos y gastos fijos recurrentes
+- Cálculo de dinero seguro para gastar
+- Simulador “¿Me lo puedo comprar?”
+- Funcionamiento offline después de la primera carga
+- Exportación/importación de copia de seguridad
