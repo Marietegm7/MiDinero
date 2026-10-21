@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0b2029">
-<title>MiDinero — Tu plan financiero</title>
+<title>MiDinero — Tu plan financiero (colchón)</title>
 <meta name="description" content="Tu presupuesto personal, ahorros y objetivos. Sin cuentas, sin servidores y con los datos guardados en tu dispositivo.">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -20,14 +20,14 @@
   <nav class="menu" aria-label="Navegación"><button class="nav-btn active" data-page="inicio"><span class="nav-icon">◫</span> Resumen</button><button class="nav-btn" data-page="movimientos"><span class="nav-icon">↔</span> Movimientos</button><button class="nav-btn" data-page="objetivos"><span class="nav-icon">◎</span> Mis objetivos</button><button class="nav-btn" data-page="ajustes"><span class="nav-icon">⚙</span> Ajustes</button></nav>
   <div class="side-bottom"><strong>🔒 Tus finanzas, en tu navegador</strong>Todo se guarda solo en este dispositivo. No se mueve dinero real. Exporta copias de seguridad periódicamente.</div>
  </aside>
- <main class="main"><div id="legacy-notice" class="callout" style="display:none;margin-bottom:15px">Hay datos guardados de la versión anterior de MiDinero. La nueva versión no los ha borrado. Puedes <a href="./anterior/">abrir la versión anterior</a> para consultarlos o exportar una copia. Los movimientos no se migran automáticamente.</div>
+ <main class="main">
   <div class="top"><div><div class="eyebrow">MI CONTROL FINANCIERO</div><h1 id="page-title">Buenos días 👋</h1></div><div class="top-actions"><input id="month" type="month" class="pill" aria-label="Mes a consultar"><button class="button" id="addQuick">+ Nuevo movimiento</button></div></div>
   <section id="inicio" class="screen active">
    <div class="grid metric-grid">
     <div class="card metric-highlight"><div class="metric-label">Dinero disponible en cuenta*</div><div class="metric-number" id="cash-val">0,00 €</div><div class="metric-foot">Según tus registros manuales</div></div>
     <div class="card"><div class="metric-label">Ingresos del mes</div><div class="metric-number" id="income-val">0,00 €</div><div class="metric-foot">Sueldo previsto: <span id="income-exp">1.409 €</span></div></div>
     <div class="card"><div class="metric-label">Gasto realizado este mes</div><div class="metric-number" id="spent-val">0,00 €</div><div class="metric-foot">No incluye ahorros apartados</div></div>
-    <div class="card"><div class="metric-label">Ahorrado este mes</div><div class="metric-number" id="saved-val">0,00 €</div><div class="metric-foot">Moto + colchón</div></div>
+    <div class="card"><div class="metric-label">Apartado este mes</div><div class="metric-number" id="saved-val">0,00 €</div><div class="metric-foot">Aportaciones; las retiradas se registran aparte</div></div>
    </div>
    <div class="callout" id="pay-note">Tu próximo cobro está previsto entre el 28 y el 30. Regístralo cuando llegue.</div>
    <div class="grid columns" style="margin-top:16px">
@@ -35,7 +35,7 @@
     <div class="card"><div class="card-head"><h2>📌 Tu plan en números</h2><span class="badge">Mensual</span></div><div class="planline"><span>Gasto de ocio recomendado</span><strong id="leisure-monthly"></strong></div><div class="planline"><span>Ahorro recomendado total</span><strong id="save-monthly"></strong></div><div class="planline"><span>Margen de seguridad</span><strong id="safety-monthly"></strong></div><p class="small-note">No gastes el presupuesto reservado para la moto o el colchón.</p></div>
    </div>
    <div class="grid columns" style="margin-top:16px">
-    <div class="card"><div class="card-head"><h2>🎯 Tus objetivos</h2><button class="button secondary small" data-goto="objetivos">Ver detalles →</button></div><div id="goals-dashboard"></div></div>
+    <div class="card"><div class="card-head"><h2>🎯 Tus objetivos</h2><button class="button secondary small" data-goto="objetivos">Ver detalles →</button></div><div id="goals-dashboard"></div><div class="actions"><button class="button secondary small" id="withdraw-shortcut" type="button">↗ Sacar del colchón</button></div></div>
     <div class="card"><div class="card-head"><h2>📆 Plan de cada mes</h2><span class="badge">Personalizado</span></div><div id="month-breakdown"></div><p class="small-note" id="plan-warning"></p></div>
    </div>
    <div class="grid budget-layout">
@@ -48,7 +48,7 @@
   <section id="movimientos" class="screen">
    <div class="headerline"><div><h2 style="margin:0 0 5px">Registrar un movimiento</h2><span class="navhint">Añade los gastos cuando ocurren. No se conecta a tu banco.</span></div></div>
    <div class="card" style="margin-bottom:16px"><form id="tx-form"><div class="form-grid">
-      <div class="field"><label for="tx-type">Tipo de movimiento</label><select id="tx-type"><option value="expense">Gasto</option><option value="income">Ingreso</option><option value="saving">Apartar dinero para ahorrar</option></select></div>
+      <div class="field"><label for="tx-type">Tipo de movimiento</label><select id="tx-type"><option value="expense">Gasto</option><option value="income">Ingreso</option><option value="saving">Apartar dinero para ahorrar</option><option value="withdrawal">Sacar dinero del colchón</option></select></div>
       <div class="field"><label for="tx-amount">Importe (€)</label><input id="tx-amount" required type="number" min="0.01" step="0.01" placeholder="Ej.: 12,50"></div>
       <div class="field"><label for="tx-category">Categoría / destino</label><select id="tx-category"></select></div>
       <div class="field"><label for="tx-date">Fecha</label><input id="tx-date" type="date" required></div>
@@ -60,6 +60,22 @@
    <div class="callout">Primero construimos seguridad financiera y reunimos el dinero de la moto. Para una compra con fecha cercana, prioriza el ahorro disponible sobre inversiones volátiles.</div>
    <div class="grid columns" style="margin-top:16px"><div class="card"><div class="card-head"><h2>🏍️ Mi moto</h2><span class="badge">11 sep 2027</span></div><div id="moto-detail"></div><div class="actions"><button class="button" data-save="moto">+ Registrar ahorro para moto</button></div></div>
    <div class="card"><div class="card-head"><h2>🛟 Mi colchón</h2><span class="badge">Primera fase</span></div><div id="emergency-detail"></div><div class="actions"><button class="button" data-save="emergency">+ Registrar ahorro para colchón</button></div></div></div>
+   <div class="card withdraw-card" style="margin-top:16px">
+     <div class="card-head"><h2>↗ Sacar dinero del colchón</h2><span class="badge">Movimiento interno</span></div>
+     <p class="small-note">Si necesitas usar tus ahorros, registra aquí la retirada. El dinero volverá a tu saldo disponible y el progreso del colchón bajará. Esto no mueve dinero en tu banco.</p>
+     <div class="withdraw-available">Colchón disponible: <strong id="emergency-available">0,00 €</strong></div>
+     <form id="withdraw-form">
+      <div class="form-grid">
+       <div class="field"><label for="emergency-withdraw">Cuánto vas a sacar (€)</label><input type="number" inputmode="decimal" id="emergency-withdraw" min="0.01" step="0.01" placeholder="Ej.: 50" required></div>
+       <div class="field"><label for="emergency-withdraw-date">Fecha de la retirada</label><input type="date" id="emergency-withdraw-date" required></div>
+       <div class="field" style="grid-column:1/-1"><label for="emergency-withdraw-reason">¿Para qué lo necesitas?</label><input type="text" id="emergency-withdraw-reason" maxlength="90" placeholder="Ej.: reparar el coche" required></div>
+      </div>
+      <div class="actions"><button class="button" type="submit">Registrar retirada del colchón</button></div>
+     </form>
+     <p class="small-note">Importante: si después pagas algo con ese dinero, registra también el gasto en Movimientos. La retirada por sí sola no es un gasto.</p>
+     <div class="card-head withdrawal-history-title"><h3>Historial de retiradas</h3><span class="badge" id="withdrawal-count"></span></div>
+     <div id="withdrawal-history"></div>
+    </div>
    <div class="card"><div class="card-head"><h2>Tu hoja de ruta</h2></div><div id="projection"></div><p class="small-note" style="margin-top:14px">Las previsiones asumen que puedes mantener las aportaciones cada mes. El objetivo de moto no incluye posibles costes de casco, equipamiento, seguro, impuestos o cambio de titularidad.</p></div>
   </section>
   <section id="ajustes" class="screen">
