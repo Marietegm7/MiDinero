@@ -1,238 +1,84 @@
-const STORAGE_KEY = 'midinero_state_v1';
-const defaultCategories = [
-  {id:'food',name:'Comida',icon:'🍔'}, {id:'home',name:'Casa',icon:'🏠'},
-  {id:'transport',name:'Transporte',icon:'🚗'}, {id:'fun',name:'Ocio',icon:'🎮'},
-  {id:'shopping',name:'Compras',icon:'🛍️'}, {id:'subscriptions',name:'Suscripciones',icon:'📱'},
-  {id:'health',name:'Personal',icon:'❤️'}, {id:'other',name:'Otros',icon:'📦'}
-];
-const freshState = () => ({
-  version:1, onboarded:false, initialBalance:0, protectedBalance:0,
-  categories:structuredClone(defaultCategories), transactions:[], budgets:[], goals:[], recurring:[]
-});
-let state = loadState();
-let currentView = 'dashboard';
+'use strict';
+const KEY='midinero_finanzas_v2';
+const DEFAULT={income:1409,opening:0,payFrom:28,payTo:30,housing:400,fuel:150,insurance:64,installment:5.98,essentials:100,leisure:200,motoMonthly:275,emergencyMonthly:150,motoGoal:3000,emergencyGoal:1000,motoDate:'2027-09-11'};
+const EXPENSE_CATS={housing:'Vivienda',fuel:'Gasolina',insurance:'Seguro del coche',installment:'Cuota pendiente',essentials:'Gastos personales',leisure:'Ocio y caprichos'};
+const INCOME_CATS={salary:'Nómina',other:'Otro ingreso'};
+const SAVE_CATS={moto:'Moto',emergency:'Colchón'};
+const $=id=>document.getElementById(id);
+const euro=n=>new Intl.NumberFormat('es-ES',{style:'currency',currency:'EUR',maximumFractionDigits:2}).format(Number(n)||0);
+const escapeHtml=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const localDate=(date=new Date())=>[date.getFullYear(),String(date.getMonth()+1).padStart(2,'0'),String(date.getDate()).padStart(2,'0')].join('-');
+const currentMonth=()=>localDate().slice(0,7);
+const money=n=>Math.round((Number(n)||0)*100)/100;
+let db=load();let page='inicio';let viewMonth=currentMonth();
+function load(){try{let x=JSON.parse(localStorage.getItem(KEY)||localStorage.getItem('brujula_finanzas_v1'));if(x&&typeof x==='object'&&x.settings&&Array.isArray(x.txs)){const settings={...DEFAULT,...x.settings};const txs=x.txs.filter(t=>t&&['income','expense','saving'].includes(t.type)&&/^\d{4}-\d{2}-\d{2}$/.test(t.date)&&Number.isFinite(Number(t.amount))&&Number(t.amount)>0).map(t=>({...t,amount:money(t.amount)}));return {settings,txs}}}catch(e){}return {settings:{...DEFAULT},txs:[]}}
+function persist(){try{localStorage.setItem(KEY,JSON.stringify(db));return true}catch(e){toast('No se pudieron guardar los datos. Comprueba que el almacenamiento local esté permitido.');return false}}
+function toast(msg){const el=$('toast');el.textContent=msg;el.classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.classList.remove('show'),4200)}
+const monthOf=t=>t.date.slice(0,7);
+const inMonth=(t,m=viewMonth)=>monthOf(t)===m;
+const sum=arr=>money(arr.reduce((acc,t)=>acc+(Number(t.amount)||0),0));
+const txMonth=(type,m=viewMonth)=>db.txs.filter(t=>inMonth(t,m)&&(!type||t.type===type));
+const savedFor=kind=>sum(db.txs.filter(t=>t.type==='saving'&&t.category===kind));
+const categoryBudget=(category,m=viewMonth)=>{const s=db.settings;if(category==='installment'&&m>'2027-04')return 0;return Number(s[category])||0};
+function budgets(m=viewMonth){return Object.fromEntries(Object.keys(EXPENSE_CATS).map(k=>[k,categoryBudget(k,m)]))}
+const fixedExpenses=(m=viewMonth)=>sum(Object.entries(budgets(m)).map(([category,amount])=>({amount})));
+const planMargin=(m=viewMonth)=>money(db.settings.income-fixedExpenses(m)-db.settings.motoMonthly-db.settings.emergencyMonthly);
+const monthTotal=type=>sum(txMonth(type));
+const cashBalance=()=>money(db.settings.opening+sum(db.txs.filter(t=>t.type==='income'))-sum(db.txs.filter(t=>t.type==='expense'))-sum(db.txs.filter(t=>t.type==='saving')));
+const percentage=(a,b)=>b>0?Math.min(100,Math.max(0,a/b*100)):0;
+function todayDay(){return localDate()}
+function readableDate(str){return new Date(str+'T12:00:00').toLocaleDateString('es-ES',{day:'numeric',month:'short',year:'numeric'})}
+function monthlyIncomeExists(m=viewMonth){return db.txs.some(t=>t.type==='income'&&t.category==='salary'&&inMonth(t,m))}
+function setPage(p){if(!['inicio','movimientos','objetivos','ajustes'].includes(p))return;page=p;document.querySelectorAll('.screen').forEach(e=>e.classList.toggle('active',e.id===p));document.querySelectorAll('[data-page]').forEach(e=>e.classList.toggle('active',e.dataset.page===p));$('page-title').textContent=({inicio:'Tu dinero, bajo control',movimientos:'Tus movimientos',objetivos:'Tus metas, paso a paso',ajustes:'Configura tu plan'})[p];window.scrollTo({top:0,behavior:'smooth'});render()}
+function render(){const s=db.settings;const income=monthTotal('income'),expenses=monthTotal('expense'),saved=monthTotal('saving');$('cash-val').textContent=euro(cashBalance());$('income-val').textContent=euro(income);$('income-exp').textContent=euro(s.income);$('spent-val').textContent=euro(expenses);$('saved-val').textContent=euro(saved);$('current-month-label').textContent=new Date(viewMonth+'-15T12:00:00').toLocaleDateString('es-ES',{month:'long',year:'numeric'});
+const expected=monthlyIncomeExists(viewMonth)?'Nómina registrada este mes.':`Cobras entre el ${s.payFrom} y el ${s.payTo}: registra la nómina al recibirla.`;const current=viewMonth===currentMonth();$('pay-note').textContent=(current?expected:'Estás consultando otro mes. ')+' Tu presupuesto es una guía; el saldo solo refleja movimientos registrados.';
+renderGoals();renderBudget();renderBreakdown();renderUpcoming();renderTransactions();renderProjection();renderDaily();}
+function renderGoals(){const s=db.settings;const moto=savedFor('moto');const em=savedFor('emergency');$('goals-dashboard').innerHTML=goalCard('🏍️','Moto',moto,s.motoGoal,'cyan')+goalCard('🛟','Colchón de emergencia',em,s.emergencyGoal,'');$('moto-detail').innerHTML=goalDetail(moto,s.motoGoal,'cyan',s.motoMonthly,'Aportación mensual prevista')+'<p class="small-note">Fecha objetivo: '+readableDate(s.motoDate)+'</p>';$('emergency-detail').innerHTML=goalDetail(em,s.emergencyGoal,'',s.emergencyMonthly,'Aportación mensual prevista')+'<p class="small-note">Cuando alcances este primer tramo, podrás subir el objetivo a unos 3 meses de gastos esenciales.</p>'}
+function goalCard(emoji,title,amount,goal,theme){return `<div class="goal"><div class="goal-top"><div class="goal-title">${emoji} ${title}</div><div class="goal-count">${Math.round(percentage(amount,goal))}%</div></div><div class="goal-amount">${euro(amount)} <small>de ${euro(goal)}</small></div><div class="progress"><div class="fill ${theme}" style="width:${percentage(amount,goal)}%"></div></div><div class="goal-row"><span>Faltan ${euro(Math.max(0,goal-amount))}</span><span>${Math.round(percentage(amount,goal))}% conseguido</span></div></div>`}
+function goalDetail(amount,goal,theme,monthly,caption){return `<div class="goal-amount">${euro(amount)} <small>/ ${euro(goal)}</small></div><div class="progress"><div class="fill ${theme}" style="width:${percentage(amount,goal)}%"></div></div><div class="goal-row"><span>Te faltan ${euro(Math.max(0,goal-amount))}</span><span>${Math.round(percentage(amount,goal))}%</span></div><div style="margin-top:20px" class="metric-label">${caption}</div><div style="font-size:26px;font-weight:800;margin-top:5px">${euro(monthly)}</div>`}
+function renderBudget(){const budgetsByCat=budgets();$('budget-list').innerHTML=Object.entries(EXPENSE_CATS).map(([key,label])=>{const limit=budgetsByCat[key];const spent=sum(txMonth('expense').filter(t=>t.category===key));const pct=limit>0?Math.min(100,spent/limit*100):(spent>0?100:0);return `<div class="budget-item"><div class="budget-row"><span>${label}</span><span><strong>${euro(spent)}</strong> / ${euro(limit)}</span></div><div class="budget-track"><div class="budget-fill ${spent>limit?'over':''}" style="width:${pct}%"></div></div></div>`}).join('')}
+function renderBreakdown(){const s=db.settings;const expenses=fixedExpenses();const moto=s.motoMonthly;const col=s.emergencyMonthly;const margin=planMargin();const items=[['Gastos planificados',expenses,'#65d7cd'],['Moto',moto,'#a6d6fa'],['Colchón',col,'#b5f27b'],['Margen libre',Math.max(0,margin),'#eacb92']];const total=items.reduce((a,x)=>a+x[1],0)||1;$('month-breakdown').innerHTML=`<div class="breakdown">${items.map(i=>`<div style="background:${i[2]};width:${(i[1]/total)*100}%"></div>`).join('')}</div><div class="legend">${items.map(i=>`<div class="legendrow"><span class="dot" style="background:${i[2]}"></span>${i[0]}<b>${euro(i[1])}</b></div>`).join('')}</div>`;$('plan-warning').textContent=margin<0?'⚠️ Tu plan supera tus ingresos en '+euro(-margin)+'. Ajusta las cantidades en Configuración.':'Quedan '+euro(margin)+' sin asignar, como margen para imprevistos. Los gastos personales y de ocio son límites que puedes revisar.'}
+function renderUpcoming(){const s=db.settings;const m=viewMonth;const rows=[['Cobro de nómina',`Días ${s.payFrom}–${s.payTo}`,monthlyIncomeExists(m)?'✓ Registrada':'Pendiente'],['Separar para la moto',euro(s.motoMonthly),'Recomendado'],['Separar para el colchón',euro(s.emergencyMonthly),'Recomendado'],['Gasto de ocio máximo',euro(s.leisure),'Al mes']];$('upcoming').innerHTML=rows.map(r=>`<div><span>${r[0]}<br><span class="muted" style="font-size:12px">${r[1]}</span></span><span class="datepill">${r[2]}</span></div>`).join('')}
+const categoryName=t=>t.type==='expense'?EXPENSE_CATS[t.category]||'Otros':t.type==='saving'?SAVE_CATS[t.category]||'Ahorro':INCOME_CATS[t.category]||'Ingreso';
+function txTable(txs){if(!txs.length)return '<div class="empty">Todavía no hay movimientos registrados aquí.<br>Empieza registrando tu próxima nómina o un gasto.</div>';return `<div class="table-wrap"><table class="tx-table"><thead><tr><th>Fecha</th><th>Concepto</th><th>Categoría</th><th>Importe</th><th></th></tr></thead><tbody>${txs.map(t=>`<tr><td>${readableDate(t.date)}</td><td>${escapeHtml(t.note||categoryName(t))}</td><td><span class="badge">${escapeHtml(categoryName(t))}</span></td><td class="${t.type==='income'?'tx-plus':t.type==='saving'?'tx-save':'tx-minus'}">${t.type==='income'?'+':'−'}${euro(t.amount)}</td><td><button title="Eliminar movimiento" aria-label="Eliminar movimiento" data-delete="${escapeHtml(t.id)}" class="button secondary small">×</button></td></tr>`).join('')}</tbody></table></div>`}
+function renderTransactions(){const txs=[...db.txs].sort((a,b)=>b.date.localeCompare(a.date)||String(b.id).localeCompare(String(a.id)));$('all-txs').innerHTML=txTable(txs.filter(t=>inMonth(t)));$('recent-txs').innerHTML=txTable(txs.filter(t=>inMonth(t)).slice(0,5));$('tx-count').textContent=txs.filter(t=>inMonth(t)).length+' este mes'}
+function paydaysUntil(target){const now=new Date(localDate()+'T12:00:00');const end=new Date(target+'T12:00:00');let count=0;for(let yy=now.getFullYear(); yy<=end.getFullYear(); yy++){for(let mm=0;mm<12;mm++){const payday=new Date(yy,mm,Math.min(db.settings.payTo||30,new Date(yy,mm+1,0).getDate()),12);if(payday>=now&&payday<=end)count++}}return count}
+function renderProjection(){const s=db.settings;const n=paydaysUntil(s.motoDate);const rem=Math.max(0,s.motoGoal-savedFor('moto'));const required=n>0?Math.ceil(rem/n*100)/100:0;const forecastSaving=money(s.motoMonthly*n+savedFor('moto'));const gap=money(forecastSaving-s.motoGoal);const monthsCol=s.emergencyMonthly>0?Math.ceil(Math.max(0,s.emergencyGoal-savedFor('emergency'))/s.emergencyMonthly):0;$('projection').innerHTML=`<div class="forecast"><div><small>Nóminas pendientes hasta la meta</small><strong>${n}</strong><small>Último cobro posible antes del ${readableDate(s.motoDate)}</small></div><div><small>Necesitas reservar por nómina</small><strong>${n?euro(required):rem>0?'Sin nóminas disponibles':'0 €'}</strong><small>Para llegar a los ${euro(s.motoGoal)}</small></div><div><small>Si sigues tu plan para la moto</small><strong style="color:${gap>=0?'var(--accent)':'var(--danger)'}">${euro(forecastSaving)}</strong><small>${gap>=0?'Meta cubierta con margen de '+euro(gap):'Te faltarían '+euro(-gap)}</small></div></div><p class="small-note">Colchón de ${euro(s.emergencyGoal)}: ${monthsCol===0?'objetivo alcanzado':s.emergencyMonthly>0?'aproximadamente '+monthsCol+' meses con las aportaciones previstas':'sin aportación mensual planificada'}.</p>`}
+function updateTxCategory(){const type=$('tx-type').value;const map=type==='income'?INCOME_CATS:type==='saving'?SAVE_CATS:EXPENSE_CATS;$('tx-category').innerHTML=Object.entries(map).map(([id,label])=>`<option value="${id}">${label}</option>`).join('');if(type==='income'){$('tx-amount').value=db.settings.income;$('tx-note').value='Nómina'}else if(type==='saving'){$('tx-amount').value=db.settings.motoMonthly;$('tx-note').value='Ahorro para la moto'}else{$('tx-amount').value='';$('tx-note').value=''}}
+function makeId(){return typeof crypto!=='undefined'&&crypto.randomUUID?crypto.randomUUID():'t'+Date.now()+'-'+Math.random().toString(36).slice(2)}
+function addTx({type,amount,date,category,note}){amount=money(amount);if(!Number.isFinite(amount)||amount<=0||!/^\d{4}-\d{2}-\d{2}$/.test(date))return toast('Indica una fecha y un importe válido.');if(type==='saving'&&amount>cashBalance()+0.001){return toast('No puedes apartar más dinero del que hay en el saldo registrado. Registra primero tu cobro.')}db.txs.push({id:makeId(),type,amount,date,category,note:String(note||'').slice(0,90)});if(!persist()){db.txs.pop();return}render();toast('Movimiento guardado correctamente.');return true}
+function registerPay(){const date=localDate();if(monthlyIncomeExists(date.slice(0,7)))return toast('Ya hay una nómina registrada este mes. Si es otro ingreso, añádelo manualmente.');if(!confirm('¿Has recibido realmente la nómina de '+euro(db.settings.income)+'? Esto solo la registrará en tu presupuesto, no en tu banco.'))return;addTx({type:'income',amount:db.settings.income,date,category:'salary',note:'Nómina'})}
+function recordSaving(kind){const amount=kind==='moto'?db.settings.motoMonthly:db.settings.emergencyMonthly;const label=kind==='moto'?'moto':'colchón';const v=prompt('¿Cuánto dinero has apartado realmente para '+label+'? (No se hace ninguna transferencia bancaria)',String(amount));if(v===null)return;const n=Number(v.replace(',','.'));if(!Number.isFinite(n)||n<=0)return toast('Escribe un importe válido.');addTx({type:'saving',amount:n,date:localDate(),category:kind,note:'Ahorro para '+label})}
+function showSettings(){const s=db.settings;for(const key of ['income','opening','housing','fuel','insurance','installment','essentials','leisure'])$('s-'+key).value=s[key];$('s-moto-monthly').value=s.motoMonthly;$('s-emergency-monthly').value=s.emergencyMonthly;$('s-moto-goal').value=s.motoGoal;$('s-emergency-goal').value=s.emergencyGoal;$('s-moto-date').value=s.motoDate;$('s-payfrom').value=s.payFrom;$('s-payto').value=s.payTo;}
+function saveSettings(e){e.preventDefault();const s={};for(const key of ['income','opening','housing','fuel','insurance','installment','essentials','leisure'])s[key]=money($('s-'+key).value);for(const [el,k] of [['s-moto-monthly','motoMonthly'],['s-emergency-monthly','emergencyMonthly'],['s-moto-goal','motoGoal'],['s-emergency-goal','emergencyGoal']])s[k]=money($(el).value);s.motoDate=$('s-moto-date').value;s.payFrom=Number($('s-payfrom').value);s.payTo=Number($('s-payto').value);if(!Number.isInteger(s.payFrom)||!Number.isInteger(s.payTo)||s.payFrom<1||s.payTo>31||s.payFrom>s.payTo)return toast('Revisa los días de cobro.');if(Object.entries(s).some(([k,v])=>k!=='motoDate'&&(!Number.isFinite(v)||v<0)&&k!=='opening')||s.motoGoal<=0||s.emergencyGoal<=0)return toast('Revisa los importes, deben ser válidos y no negativos.');db.settings=s;if(persist()){render();toast('Presupuesto actualizado.')} }
+function setup(){const hour=new Date().getHours();$('page-title').textContent=(hour<13?'Buenos días':hour<21?'Buenas tardes':'Buenas noches')+' 👋';$('month').value=viewMonth;$('tx-date').value=localDate();updateTxCategory();showSettings();document.querySelectorAll('[data-page]').forEach(b=>b.addEventListener('click',()=>setPage(b.dataset.page)));document.querySelectorAll('[data-goto]').forEach(b=>b.addEventListener('click',()=>setPage(b.dataset.goto)));document.querySelectorAll('[data-save]').forEach(b=>b.addEventListener('click',()=>recordSaving(b.dataset.save)));$('addQuick').addEventListener('click',()=>setPage('movimientos'));$('month').addEventListener('change',e=>{if(e.target.value){viewMonth=e.target.value;render()}});$('tx-type').addEventListener('change',updateTxCategory);$('tx-category').addEventListener('change',e=>{if($('tx-type').value==='saving'){$('tx-amount').value=e.target.value==='moto'?db.settings.motoMonthly:db.settings.emergencyMonthly;$('tx-note').value=e.target.value==='moto'?'Ahorro para la moto':'Ahorro para el colchón'}});
+$('tx-form').addEventListener('submit',e=>{e.preventDefault();if(addTx({type:$('tx-type').value,amount:$('tx-amount').value,date:$('tx-date').value,category:$('tx-category').value,note:$('tx-note').value})){updateTxCategory()}});$('pay-button').addEventListener('click',registerPay);
+document.addEventListener('click',e=>{const b=e.target.closest('[data-delete]');if(!b)return;const tx=db.txs.find(t=>t.id===b.dataset.delete);if(!tx)return;if(!confirm('¿Eliminar este movimiento?'))return;db.txs=db.txs.filter(t=>t.id!==b.dataset.delete);persist();render();toast('Movimiento eliminado.')});$('settings-form').addEventListener('submit',saveSettings);$('reset-budget').addEventListener('click',()=>{if(!confirm('¿Restablecer solo el presupuesto recomendado? Tus movimientos seguirán guardados.'))return;db.settings={...DEFAULT,opening:db.settings.opening};persist();showSettings();render();toast('Importes restaurados.')});$('export-data').addEventListener('click',()=>{const blob=new Blob([JSON.stringify({version:1,createdAt:new Date().toISOString(),...db},null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='brujula-copia-'+localDate()+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1500);toast('Copia de seguridad exportada. Guárdala en privado.')});$('import-button').addEventListener('click',()=>$('import-file').click());$('import-file').addEventListener('change',async e=>{const file=e.target.files[0];if(!file)return;try{if(file.size>2_000_000)throw Error('Archivo demasiado grande');const x=JSON.parse(await file.text());if(!x.settings||!Array.isArray(x.txs))throw Error('Formato no reconocido');if(!confirm('Esta copia sustituirá los datos actuales de la aplicación. ¿Continuar?'))return;const allowed=['income','opening','housing','fuel','insurance','installment','essentials','leisure','motoMonthly','emergencyMonthly','motoGoal','emergencyGoal'];const cleanSettings={...DEFAULT};for(const k of allowed){if(Object.hasOwn(x.settings,k)){const num=Number(x.settings[k]);if(!Number.isFinite(num)||((k!=='opening')&&num<0))throw Error('Datos de importes no válidos');cleanSettings[k]=money(num)}}if(typeof x.settings.motoDate==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(x.settings.motoDate))cleanSettings.motoDate=x.settings.motoDate;const cleanTx=[];for(const t of x.txs){if(!t||!['income','expense','saving'].includes(t.type)||!/^\d{4}-\d{2}-\d{2}$/.test(t.date)||!Number.isFinite(Number(t.amount))||Number(t.amount)<=0)throw Error('Movimientos incorrectos');const map=t.type==='income'?INCOME_CATS:t.type==='saving'?SAVE_CATS:EXPENSE_CATS;if(!Object.hasOwn(map,t.category))throw Error('Categoría no válida');cleanTx.push({id:makeId(),type:t.type,category:t.category,date:t.date,amount:money(t.amount),note:String(t.note||'').slice(0,90)})}db={settings:cleanSettings,txs:cleanTx};persist();showSettings();render();toast('Copia importada correctamente.')}catch(err){toast('No se pudo importar: '+err.message)}finally{e.target.value=''}});$('clear-data').addEventListener('click',()=>{if(!confirm('¿Seguro que quieres borrar todos tus movimientos y restaurar el presupuesto? Esta acción no se puede deshacer.'))return;db={settings:{...DEFAULT},txs:[]};persist();showSettings();render();toast('Datos borrados.')});render()}
 
-const $ = (s,r=document)=>r.querySelector(s);
-const $$ = (s,r=document)=>[...r.querySelectorAll(s)];
-const uid = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
-const esc = (v='') => String(v).replace(/[&<>'"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':'&quot;'}[c]));
-const todayISO = () => new Date().toISOString().slice(0,10);
-const money = n => new Intl.NumberFormat('es-ES',{style:'currency',currency:'EUR'}).format(Number(n||0));
-const dateFmt = d => new Intl.DateTimeFormat('es-ES',{day:'numeric',month:'short'}).format(new Date(`${d}T12:00:00`));
-const monthKey = d => d.slice(0,7);
-const currentMonth = () => todayISO().slice(0,7);
-const catById = id => state.categories.find(c=>c.id===id) || {name:'Otros',icon:'📦'};
+function renderDaily(){
+ const s=db.settings,now=new Date(),current=viewMonth===currentMonth();
+ const spent=sum(txMonth('expense',viewMonth).filter(t=>t.category==='leisure'));
+ const left=Math.max(0,money(s.leisure-spent));
+ const daysInMonth=new Date(Number(viewMonth.slice(0,4)),Number(viewMonth.slice(5)),0).getDate();
+ const remainingDays=current?Math.max(1,daysInMonth-now.getDate()+1):daysInMonth;
+ const perDay=money(Math.min(s.leisure/daysInMonth,left/remainingDays));
+ $('daily-limit').textContent=euro(perDay)+' / día';
+ $('daily-message').textContent=current?'Ritmo diario prudente para ocio: te quedan '+euro(left)+' para los '+remainingDays+' días restantes. No representa tu saldo en el banco.':'Ritmo de gasto de ocio estimado para este mes. No representa tu saldo bancario.';
+ $('leisure-progress').style.width=percentage(spent,s.leisure)+'%';
+ $('leisure-used').textContent='Gastado: '+euro(spent);
+ $('leisure-left').textContent='Disponible: '+euro(left);
+ $('leisure-monthly').textContent=euro(s.leisure);
+ $('save-monthly').textContent=euro(s.motoMonthly+s.emergencyMonthly);
+ $('safety-monthly').textContent=euro(planMargin());
+}
+function exportMovementsCSV(){
+ const cell=v=>{let s=String(v??'');if(/^[=+@-]/.test(s))s="'"+s;return '"'+s.replace(/"/g,'""')+'"';};
+ const rows=[['Fecha','Tipo','Categoría','Importe','Nota'],...db.txs.map(t=>[t.date,t.type,t.category,Number(t.amount).toFixed(2),t.note||''])];
+ const content='\ufeff'+rows.map(r=>r.map(cell).join(';')).join('\r\n');
+ const blob=new Blob([content],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='midinero-movimientos-'+localDate()+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1500);toast('CSV exportado.');
+}
+$('export-csv').addEventListener('click',exportMovementsCSV);
 
-function loadState(){
-  try { const raw=localStorage.getItem(STORAGE_KEY); return raw ? {...freshState(),...JSON.parse(raw)} : freshState(); }
-  catch { return freshState(); }
-}
-function saveState(){ localStorage.setItem(STORAGE_KEY,JSON.stringify(state)); render(); }
-function transactionSum(){ return state.transactions.reduce((s,t)=>s+(t.type==='income'?Number(t.amount):-Number(t.amount)),0); }
-function realBalance(){ return Number(state.initialBalance)+transactionSum(); }
-function reservedGoals(){ return state.goals.reduce((s,g)=>s+Number(g.saved||0),0); }
-function thisMonthExpenses(categoryId){
-  return state.transactions.filter(t=>t.type==='expense' && monthKey(t.date)===currentMonth() && (!categoryId || t.categoryId===categoryId)).reduce((s,t)=>s+Number(t.amount),0);
-}
-function nextRecurringDate(item, from=new Date()){
-  const y=from.getFullYear(), m=from.getMonth();
-  const make=(yy,mm)=>new Date(yy,mm,Math.min(Number(item.day||1),new Date(yy,mm+1,0).getDate()),12);
-  let d=make(y,m); if(d < new Date(from.getFullYear(),from.getMonth(),from.getDate(),12)) d=make(y,m+1); return d;
-}
-function upcomingCommitments(){
-  const now=new Date();
-  const incomes=state.recurring.filter(r=>r.type==='income').map(r=>nextRecurringDate(r,now)).sort((a,b)=>a-b);
-  const horizon=incomes[0] || new Date(now.getFullYear(),now.getMonth()+1,1,12);
-  return state.recurring.filter(r=>r.type==='expense').map(r=>({r,d:nextRecurringDate(r,now)})).filter(x=>x.d<=horizon).reduce((s,x)=>s+Number(x.r.amount),0);
-}
-function spendable(){ return realBalance()-reservedGoals()-Number(state.protectedBalance||0)-upcomingCommitments(); }
-function clamp(n,min,max){ return Math.max(min,Math.min(max,n)); }
-
-function render(){
-  const titles={dashboard:'Inicio',transactions:'Movimientos',goals:'Objetivos',budgets:'Límites',more:'Más'};
-  $('#viewTitle').textContent=titles[currentView];
-  $$('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.view===currentView));
-  const views={dashboard:renderDashboard,transactions:renderTransactions,goals:renderGoals,budgets:renderBudgets,more:renderMore};
-  $('#mainContent').innerHTML=views[currentView]();
-  bindViewEvents();
-}
-
-function renderDashboard(){
-  const bal=realBalance(), res=reservedGoals(), commit=upcomingCommitments(), free=spendable();
-  const tx=state.transactions.slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,4);
-  const goals=state.goals.slice(0,3);
-  const budgetCards=state.budgets.slice(0,3).map(b=>{
-    const spent=thisMonthExpenses(b.categoryId), pct=clamp((spent/Number(b.limit||1))*100,0,100), c=catById(b.categoryId), left=Number(b.limit)-spent;
-    return `<div class="row"><div class="avatar">${c.icon}</div><div class="row-main"><div class="row-title">${esc(c.name)}</div><div class="row-meta">${money(spent)} de ${money(b.limit)} · quedan ${money(Math.max(0,left))}</div><div class="progress"><i style="width:${pct}%"></i></div></div></div>`;
-  }).join('');
-  return `
-    <section class="card hero">
-      <div class="label">Dinero seguro para gastar</div>
-      <div class="money-xl ${free<0?'danger':''}">${money(free)}</div>
-      <p class="subtle">Saldo real menos objetivos, colchón protegido y gastos fijos próximos.</p>
-      <div class="stat-grid">
-        <div class="stat"><small>Saldo real</small><strong>${money(bal)}</strong></div>
-        <div class="stat"><small>Objetivos</small><strong>${money(res)}</strong></div>
-        <div class="stat"><small>Comprometido</small><strong>${money(commit)}</strong></div>
-        <div class="stat"><small>Protegido</small><strong>${money(state.protectedBalance)}</strong></div>
-      </div>
-    </section>
-    <section class="action-grid">
-      <button class="primary" id="purchaseBtn">🛒 ¿Me lo puedo comprar?</button>
-      <button class="secondary" id="adjustBtn">≈ Ajustar saldo</button>
-    </section>
-    <div class="two-col">
-      <section class="card">
-        <div class="section-head"><div><p class="eyebrow">ESTE MES</p><h3>Límites</h3></div><button class="link-button" data-go="budgets">Ver todos</button></div>
-        <div class="list">${budgetCards || '<div class="empty">Todavía no has creado límites de gasto.</div>'}</div>
-      </section>
-      <section class="card">
-        <div class="section-head"><div><p class="eyebrow">AHORRO</p><h3>Objetivos</h3></div><button class="link-button" data-go="goals">Ver todos</button></div>
-        <div class="list">${goals.map(g=>goalRow(g)).join('') || '<div class="empty">Añade un objetivo para empezar a reservar dinero.</div>'}</div>
-      </section>
-    </div>
-    <section class="card">
-      <div class="section-head"><div><p class="eyebrow">HISTORIAL</p><h3>Últimos movimientos</h3></div><button class="link-button" data-go="transactions">Ver todos</button></div>
-      <div class="list">${tx.map(transactionRow).join('') || '<div class="empty">Aún no hay movimientos.</div>'}</div>
-    </section>`;
-}
-function transactionRow(t){ const c=catById(t.categoryId); return `<button class="row tx-row" data-id="${t.id}" style="width:100%;text-align:left;color:inherit"><div class="avatar">${t.type==='income'?'💰':c.icon}</div><div class="row-main"><div class="row-title">${esc(t.note || (t.type==='income'?'Ingreso':c.name))}</div><div class="row-meta">${dateFmt(t.date)} · ${t.type==='income'?'Ingreso':esc(c.name)}</div></div><div class="amount ${t.type==='income'?'good':''}">${t.type==='income'?'+':'−'}${money(t.amount)}</div></button>`; }
-function goalRow(g){ const pct=clamp((Number(g.saved)/Number(g.target||1))*100,0,100); return `<button class="row goal-row" data-id="${g.id}" style="width:100%;text-align:left;color:inherit"><div class="avatar">🎯</div><div class="row-main"><div class="row-title">${esc(g.name)}</div><div class="row-meta">${money(g.saved)} de ${money(g.target)}${g.date?` · ${dateFmt(g.date)}`:''}</div><div class="progress"><i style="width:${pct}%"></i></div></div><strong>${Math.round(pct)}%</strong></button>`; }
-
-function renderTransactions(){
-  const sorted=state.transactions.slice().sort((a,b)=>b.date.localeCompare(a.date));
-  return `<section class="card"><div class="section-head"><div><p class="eyebrow">TOTAL</p><h3>${money(realBalance())}</h3></div><button class="primary" id="addTxBtn">＋ Añadir</button></div><div class="list">${sorted.map(transactionRow).join('') || '<div class="empty">Añade tu primer ingreso o gasto.</div>'}</div></section>`;
-}
-function renderGoals(){
-  return `<section class="card"><div class="section-head"><div><p class="eyebrow">RESERVADO</p><h3>${money(reservedGoals())}</h3></div><button class="primary" id="addGoalBtn">＋ Objetivo</button></div><div class="list">${state.goals.map(goalRow).join('') || '<div class="empty">Puedes crear un objetivo para un viaje, móvil, ordenador o cualquier compra.</div>'}</div></section>`;
-}
-function renderBudgets(){
-  const rows=state.budgets.map(b=>{ const c=catById(b.categoryId), spent=thisMonthExpenses(b.categoryId), left=Number(b.limit)-spent, pct=clamp(spent/Number(b.limit||1)*100,0,100); return `<button class="row budget-row" data-id="${b.id}" style="width:100%;text-align:left;color:inherit"><div class="avatar">${c.icon}</div><div class="row-main"><div class="row-title">${esc(c.name)}</div><div class="row-meta">${money(spent)} gastados · ${left>=0?`${money(left)} disponibles`:`${money(Math.abs(left))} por encima`}</div><div class="progress"><i style="width:${pct}%"></i></div></div><div class="amount">${money(b.limit)}</div></button>`; }).join('');
-  return `<section class="card"><div class="section-head"><div><p class="eyebrow">PRESUPUESTOS</p><h3>${money(thisMonthExpenses())} gastados este mes</h3></div><button class="primary" id="addBudgetBtn">＋ Límite</button></div><div class="list">${rows || '<div class="empty">Crea límites mensuales por categoría.</div>'}</div></section>`;
-}
-function renderMore(){
-  const recurringRows=state.recurring.map(r=>`<button class="row recurring-row" data-id="${r.id}" style="width:100%;text-align:left;color:inherit"><div class="avatar">${r.type==='income'?'💰':'📅'}</div><div class="row-main"><div class="row-title">${esc(r.name)}</div><div class="row-meta">Día ${r.day} · ${r.type==='income'?'Ingreso':'Gasto fijo'}</div></div><div class="amount ${r.type==='income'?'good':''}">${r.type==='income'?'+':'−'}${money(r.amount)}</div></button>`).join('');
-  const categoryRows=state.categories.map(c=>`<button class="row category-row" data-id="${c.id}" style="width:100%;text-align:left;color:inherit"><div class="avatar">${esc(c.icon)}</div><div class="row-main"><div class="row-title">${esc(c.name)}</div><div class="row-meta">Categoría de gasto</div></div><span>›</span></button>`).join('');
-  return `<section class="card"><div class="section-head"><div><p class="eyebrow">FIJOS</p><h3>Ingresos y gastos recurrentes</h3></div><button class="primary" id="addRecurringBtn">＋ Añadir</button></div><div class="list">${recurringRows || '<div class="empty">Añade nómina, alquiler, suscripciones y otros pagos habituales.</div>'}</div></section>
-  <section class="card"><div class="section-head"><div><p class="eyebrow">ORGANIZACIÓN</p><h3>Categorías</h3></div><button class="primary" id="addCategoryBtn">＋ Categoría</button></div><div class="list">${categoryRows}</div></section>
-  <section class="card"><p class="eyebrow">SEGURIDAD FINANCIERA</p><h3>Colchón protegido</h3><p class="subtle">Esta cantidad nunca se considera disponible para gastar.</p><div class="kpi"><span>Importe protegido</span><strong>${money(state.protectedBalance)}</strong></div><button class="secondary full" id="protectedBtn">Cambiar colchón</button></section>
-  <section class="card"><p class="eyebrow">DATOS</p><h3>Copia de seguridad</h3><p class="subtle">Tus datos están en este dispositivo. Exporta una copia de vez en cuando.</p><div class="action-grid"><button class="secondary" id="exportBtn">Exportar copia</button><button class="secondary" id="importBtn">Importar copia</button></div><input type="file" id="importFile" accept="application/json" hidden><button class="danger-btn full" id="resetBtn" style="margin-top:10px">Borrar todos los datos</button></section>`;
-}
-
-function bindViewEvents(){
-  $$('[data-go]').forEach(b=>b.onclick=()=>{currentView=b.dataset.go;render();});
-  $('#purchaseBtn')?.addEventListener('click',openPurchase);
-  $('#adjustBtn')?.addEventListener('click',openAdjust);
-  $('#addTxBtn')?.addEventListener('click',()=>openTransaction());
-  $$('.tx-row').forEach(b=>b.onclick=()=>openTransaction(b.dataset.id));
-  $('#addGoalBtn')?.addEventListener('click',()=>openGoal());
-  $$('.goal-row').forEach(b=>b.onclick=()=>openGoal(b.dataset.id));
-  $('#addBudgetBtn')?.addEventListener('click',()=>openBudget());
-  $$('.budget-row').forEach(b=>b.onclick=()=>openBudget(b.dataset.id));
-  $('#addRecurringBtn')?.addEventListener('click',()=>openRecurring());
-  $$('.recurring-row').forEach(b=>b.onclick=()=>openRecurring(b.dataset.id));
-  $('#addCategoryBtn')?.addEventListener('click',()=>openCategory());
-  $$('.category-row').forEach(b=>b.onclick=()=>openCategory(b.dataset.id));
-  $('#protectedBtn')?.addEventListener('click',openProtected);
-  $('#exportBtn')?.addEventListener('click',exportData);
-  $('#importBtn')?.addEventListener('click',()=>$('#importFile').click());
-  $('#importFile')?.addEventListener('change',importData);
-  $('#resetBtn')?.addEventListener('click',resetData);
-}
-
-function openModal({eyebrow='',title,body,actions}){
-  $('#modalEyebrow').textContent=eyebrow; $('#modalTitle').textContent=title; $('#modalBody').innerHTML=body; $('#modalActions').innerHTML=actions || '';
-  $('#modal').showModal();
-}
-function closeModal(){ $('#modal').close(); }
-function toast(msg){ const el=$('#toastTemplate').content.firstElementChild.cloneNode(true); el.textContent=msg; document.body.append(el); setTimeout(()=>el.remove(),2400); }
-function categoryOptions(selected=''){ return state.categories.map(c=>`<option value="${c.id}" ${c.id===selected?'selected':''}>${c.icon} ${esc(c.name)}</option>`).join(''); }
-
-function openTransaction(id){
-  const t=state.transactions.find(x=>x.id===id) || {type:'expense',amount:'',date:todayISO(),categoryId:'food',note:''};
-  openModal({eyebrow:id?'EDITAR':'NUEVO',title:'Movimiento',body:`
-    <div class="segmented"><button type="button" data-type="expense" class="${t.type==='expense'?'active':''}">Gasto</button><button type="button" data-type="income" class="${t.type==='income'?'active':''}">Ingreso</button></div>
-    <input type="hidden" id="txType" value="${t.type}">
-    <div class="field"><label>Importe</label><input id="txAmount" type="number" inputmode="decimal" min="0" step="0.01" value="${t.amount}" placeholder="0,00"></div>
-    <div class="inline-fields"><div class="field"><label>Fecha</label><input id="txDate" type="date" value="${t.date}"></div><div class="field" id="txCatWrap"><label>Categoría</label><select id="txCategory">${categoryOptions(t.categoryId)}</select></div></div>
-    <div class="field"><label>Descripción</label><input id="txNote" maxlength="80" value="${esc(t.note)}" placeholder="Ej. Supermercado"></div>`,
-    actions:`${id?'<button type="button" class="danger-btn" id="deleteTx">Eliminar</button>':''}<button type="button" class="secondary" id="cancelModal">Cancelar</button><button type="button" class="primary" id="saveTx">Guardar</button>`});
-  $$('[data-type]','#modal').forEach(b=>b.onclick=()=>{ $$('[data-type]','#modal').forEach(x=>x.classList.remove('active')); b.classList.add('active'); $('#txType').value=b.dataset.type; $('#txCatWrap').style.opacity=b.dataset.type==='income'?'.45':'1'; });
-  $('#txCatWrap').style.opacity=t.type==='income'?'.45':'1';
-  $('#cancelModal').onclick=closeModal;
-  $('#saveTx').onclick=()=>{ const amount=Number($('#txAmount').value); if(!(amount>0)) return toast('Introduce un importe válido'); const obj={id:id||uid(),type:$('#txType').value,amount,date:$('#txDate').value||todayISO(),categoryId:$('#txCategory').value,note:$('#txNote').value.trim()}; if(id) state.transactions=state.transactions.map(x=>x.id===id?obj:x); else state.transactions.push(obj); closeModal();saveState();toast('Movimiento guardado'); };
-  $('#deleteTx')?.addEventListener('click',()=>{ state.transactions=state.transactions.filter(x=>x.id!==id); closeModal();saveState();toast('Movimiento eliminado'); });
-}
-
-function openGoal(id){
-  const g=state.goals.find(x=>x.id===id) || {name:'',target:'',saved:0,date:''};
-  openModal({eyebrow:id?'OBJETIVO':'NUEVO',title:id?g.name:'Crear objetivo',body:`
-    <div class="field"><label>Nombre</label><input id="goalName" maxlength="60" value="${esc(g.name)}" placeholder="Ej. Viaje a Japón"></div>
-    <div class="inline-fields"><div class="field"><label>Objetivo (€)</label><input id="goalTarget" type="number" min="0" step="0.01" value="${g.target}" placeholder="1000"></div><div class="field"><label>Fecha opcional</label><input id="goalDate" type="date" value="${g.date||''}"></div></div>
-    ${id?`<div class="purchase-result"><div class="kpi"><span>Reservado</span><strong>${money(g.saved)}</strong></div><div class="kpi"><span>Disponible general</span><strong>${money(spendable())}</strong></div></div><div class="inline-fields"><button type="button" class="secondary" id="fundGoal">＋ Reservar</button><button type="button" class="secondary" id="unfundGoal">− Liberar</button></div>`:''}`,
-    actions:`${id?'<button type="button" class="danger-btn" id="deleteGoal">Eliminar</button>':''}<button type="button" class="secondary" id="cancelModal">Cancelar</button><button type="button" class="primary" id="saveGoal">Guardar</button>`});
-  $('#cancelModal').onclick=closeModal;
-  $('#saveGoal').onclick=()=>{ const name=$('#goalName').value.trim(), target=Number($('#goalTarget').value); if(!name||!(target>0)) return toast('Completa nombre e importe'); const obj={...g,id:id||uid(),name,target,date:$('#goalDate').value}; if(id) state.goals=state.goals.map(x=>x.id===id?obj:x); else state.goals.push(obj); closeModal();saveState();toast('Objetivo guardado'); };
-  $('#deleteGoal')?.addEventListener('click',()=>{state.goals=state.goals.filter(x=>x.id!==id);closeModal();saveState();toast('Objetivo eliminado; el dinero vuelve a estar disponible');});
-  $('#fundGoal')?.addEventListener('click',()=>adjustGoalFunds(id,1));
-  $('#unfundGoal')?.addEventListener('click',()=>adjustGoalFunds(id,-1));
-}
-function adjustGoalFunds(id,dir){
-  const g=state.goals.find(x=>x.id===id); const max=dir>0?Math.max(0,Math.min(spendable(),Number(g.target)-Number(g.saved))):Number(g.saved);
-  const label=dir>0?'reservar':'liberar';
-  openModal({eyebrow:'OBJETIVO',title:`${dir>0?'Reservar':'Liberar'} dinero`,body:`<p class="subtle">Máximo disponible: ${money(max)}</p><div class="field"><label>Importe</label><input id="fundAmount" type="number" min="0" max="${max}" step="0.01" placeholder="0,00"></div>`,actions:`<button type="button" class="secondary" id="cancelModal">Cancelar</button><button type="button" class="primary" id="applyFunds">${dir>0?'Reservar':'Liberar'}</button>`});
-  $('#cancelModal').onclick=closeModal; $('#applyFunds').onclick=()=>{ const a=Number($('#fundAmount').value); if(!(a>0)||a>max) return toast('Importe no válido'); g.saved=Number(g.saved)+dir*a; closeModal();saveState();toast(`Dinero ${label}do`); };
-}
-
-function openBudget(id){
-  const b=state.budgets.find(x=>x.id===id)||{categoryId:state.categories[0]?.id||'other',limit:''};
-  openModal({eyebrow:'LÍMITE MENSUAL',title:id?'Editar límite':'Nuevo límite',body:`<div class="field"><label>Categoría</label><select id="budgetCat">${categoryOptions(b.categoryId)}</select></div><div class="field"><label>Límite mensual</label><input id="budgetLimit" type="number" min="0" step="0.01" value="${b.limit}" placeholder="200"></div>`,actions:`${id?'<button type="button" class="danger-btn" id="deleteBudget">Eliminar</button>':''}<button type="button" class="secondary" id="cancelModal">Cancelar</button><button type="button" class="primary" id="saveBudget">Guardar</button>`});
-  $('#cancelModal').onclick=closeModal; $('#saveBudget').onclick=()=>{ const categoryId=$('#budgetCat').value, limit=Number($('#budgetLimit').value); if(!(limit>0)) return toast('Introduce un límite válido'); const existing=state.budgets.find(x=>x.categoryId===categoryId && x.id!==id); if(existing) return toast('Esa categoría ya tiene un límite'); const obj={id:id||uid(),categoryId,limit}; if(id) state.budgets=state.budgets.map(x=>x.id===id?obj:x); else state.budgets.push(obj); closeModal();saveState();toast('Límite guardado'); };
-  $('#deleteBudget')?.addEventListener('click',()=>{state.budgets=state.budgets.filter(x=>x.id!==id);closeModal();saveState();toast('Límite eliminado');});
-}
-
-function openRecurring(id){
-  const r=state.recurring.find(x=>x.id===id)||{name:'',type:'expense',amount:'',day:1,categoryId:'subscriptions'};
-  openModal({eyebrow:'RECURRENTE',title:id?'Editar fijo':'Añadir fijo',body:`<div class="segmented"><button type="button" data-rtype="expense" class="${r.type==='expense'?'active':''}">Gasto fijo</button><button type="button" data-rtype="income" class="${r.type==='income'?'active':''}">Ingreso</button></div><input id="rType" type="hidden" value="${r.type}"><div class="field"><label>Nombre</label><input id="rName" value="${esc(r.name)}" placeholder="Ej. Alquiler"></div><div class="inline-fields"><div class="field"><label>Importe</label><input id="rAmount" type="number" min="0" step="0.01" value="${r.amount}"></div><div class="field"><label>Día del mes</label><input id="rDay" type="number" min="1" max="31" value="${r.day}"></div></div><div class="field"><label>Categoría</label><select id="rCat">${categoryOptions(r.categoryId)}</select></div>`,actions:`${id?'<button type="button" class="danger-btn" id="deleteRecurring">Eliminar</button>':''}<button type="button" class="secondary" id="cancelModal">Cancelar</button><button type="button" class="primary" id="saveRecurring">Guardar</button>`});
-  $$('[data-rtype]','#modal').forEach(b=>b.onclick=()=>{$$('[data-rtype]','#modal').forEach(x=>x.classList.remove('active'));b.classList.add('active');$('#rType').value=b.dataset.rtype;});
-  $('#cancelModal').onclick=closeModal; $('#saveRecurring').onclick=()=>{const name=$('#rName').value.trim(),amount=Number($('#rAmount').value),day=Number($('#rDay').value);if(!name||!(amount>0)||day<1||day>31)return toast('Revisa los datos');const obj={id:id||uid(),name,type:$('#rType').value,amount,day,categoryId:$('#rCat').value};if(id)state.recurring=state.recurring.map(x=>x.id===id?obj:x);else state.recurring.push(obj);closeModal();saveState();toast('Fijo guardado');};
-  $('#deleteRecurring')?.addEventListener('click',()=>{state.recurring=state.recurring.filter(x=>x.id!==id);closeModal();saveState();toast('Fijo eliminado');});
-}
-
-function openCategory(id){
-  const c=state.categories.find(x=>x.id===id)||{name:'',icon:'💡'};
-  openModal({eyebrow:'CATEGORÍA',title:id?'Editar categoría':'Nueva categoría',body:`<div class="inline-fields"><div class="field"><label>Icono</label><input id="catIcon" maxlength="4" value="${esc(c.icon)}" placeholder="🍕"></div><div class="field"><label>Nombre</label><input id="catName" maxlength="30" value="${esc(c.name)}" placeholder="Ej. Restaurantes"></div></div>`,actions:`${id?'<button type="button" class="danger-btn" id="deleteCategory">Eliminar</button>':''}<button type="button" class="secondary" id="cancelModal">Cancelar</button><button type="button" class="primary" id="saveCategory">Guardar</button>`});
-  $('#cancelModal').onclick=closeModal;
-  $('#saveCategory').onclick=()=>{const name=$('#catName').value.trim(),icon=$('#catIcon').value.trim()||'💡';if(!name)return toast('Ponle un nombre');const duplicate=state.categories.find(x=>x.name.toLowerCase()===name.toLowerCase()&&x.id!==id);if(duplicate)return toast('Ya existe una categoría con ese nombre');const obj={id:id||uid(),name,icon};if(id)state.categories=state.categories.map(x=>x.id===id?obj:x);else state.categories.push(obj);closeModal();saveState();toast('Categoría guardada');};
-  $('#deleteCategory')?.addEventListener('click',()=>{const used=state.transactions.some(x=>x.categoryId===id)||state.budgets.some(x=>x.categoryId===id)||state.recurring.some(x=>x.categoryId===id);if(used)return toast('No puedes eliminarla mientras tenga movimientos, límites o fijos');if(state.categories.length<=1)return toast('Debe quedar al menos una categoría');state.categories=state.categories.filter(x=>x.id!==id);closeModal();saveState();toast('Categoría eliminada');});
-}
-
-function openProtected(){
-  openModal({eyebrow:'COLCHÓN',title:'Saldo mínimo protegido',body:`<p class="subtle">La app intentará que esta cantidad nunca se considere disponible para gastar.</p><div class="field"><label>Importe</label><input id="protectedAmount" type="number" min="0" step="0.01" value="${state.protectedBalance}"></div>`,actions:`<button type="button" class="secondary" id="cancelModal">Cancelar</button><button type="button" class="primary" id="saveProtected">Guardar</button>`});
-  $('#cancelModal').onclick=closeModal; $('#saveProtected').onclick=()=>{state.protectedBalance=Math.max(0,Number($('#protectedAmount').value)||0);closeModal();saveState();toast('Colchón actualizado');};
-}
-function openAdjust(){
-  openModal({eyebrow:'SALDO REAL',title:'Ajustar saldo',body:`<p class="subtle">Ahora la app calcula ${money(realBalance())}. Escribe lo que tienes realmente y se creará un ajuste.</p><div class="field"><label>Saldo real</label><input id="realAmount" type="number" step="0.01" value="${realBalance().toFixed(2)}"></div>`,actions:`<button type="button" class="secondary" id="cancelModal">Cancelar</button><button type="button" class="primary" id="applyAdjust">Ajustar</button>`});
-  $('#cancelModal').onclick=closeModal; $('#applyAdjust').onclick=()=>{const target=Number($('#realAmount').value);if(!Number.isFinite(target))return toast('Introduce un saldo válido');const diff=target-realBalance();if(Math.abs(diff)>.004)state.transactions.push({id:uid(),type:diff>=0?'income':'expense',amount:Math.abs(diff),date:todayISO(),categoryId:'other',note:'Ajuste de saldo'});closeModal();saveState();toast('Saldo ajustado');};
-}
-function openPurchase(){
-  const free=spendable();
-  openModal({eyebrow:'SIMULADOR',title:'¿Me lo puedo comprar?',body:`<div class="field"><label>Qué quieres comprar</label><input id="purchaseName" placeholder="Ej. Auriculares"></div><div class="field"><label>Precio</label><input id="purchasePrice" type="number" min="0" step="0.01" placeholder="0,00"></div><div id="purchaseOutput"></div>`,actions:`<button type="button" class="secondary" id="cancelModal">Cerrar</button><button type="button" class="primary" id="simulatePurchase">Calcular</button>`});
-  $('#cancelModal').onclick=closeModal; $('#simulatePurchase').onclick=()=>{const p=Number($('#purchasePrice').value), name=$('#purchaseName').value.trim()||'Esta compra'; if(!(p>0))return toast('Introduce el precio'); const after=free-p; let cls='good',title='Sí, encaja en tu plan'; if(after<0){cls='danger';title='No es recomendable ahora';} else if(after < Math.max(50,free*.2)){cls='warn';title='Puedes, pero te deja poco margen';} $('#purchaseOutput').innerHTML=`<div class="purchase-result"><h3 class="${cls}">${title}</h3><p class="subtle">${esc(name)} cuesta ${money(p)}.</p><div class="kpi"><span>Disponible antes</span><strong>${money(free)}</strong></div><div class="kpi"><span>Disponible después</span><strong class="${after<0?'danger':''}">${money(after)}</strong></div><div class="kpi"><span>Objetivos reservados</span><strong>${money(reservedGoals())}</strong></div><div class="kpi"><span>Gastos fijos próximos</span><strong>${money(upcomingCommitments())}</strong></div></div>`; };
-}
-
-function exportData(){
-  const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`midinero-copia-${todayISO()}.json`; a.click(); URL.revokeObjectURL(url); toast('Copia exportada');
-}
-function importData(e){ const file=e.target.files?.[0]; if(!file)return; const reader=new FileReader(); reader.onload=()=>{try{const obj=JSON.parse(reader.result); if(!obj || !Array.isArray(obj.transactions)) throw new Error(); state={...freshState(),...obj,onboarded:true};saveState();toast('Copia importada');}catch{toast('El archivo no parece una copia válida');}}; reader.readAsText(file); }
-function resetData(){ if(confirm('¿Seguro? Esto borrará todos los datos guardados en este dispositivo.')){state=freshState();localStorage.removeItem(STORAGE_KEY);render();startOnboarding();} }
-function startOnboarding(){
-  openModal({eyebrow:'BIENVENIDO',title:'Configura MiDinero',body:`<p class="subtle">Introduce lo que tienes ahora mismo. Después podrás añadir tus ingresos, gastos fijos, límites y objetivos.</p><div class="field"><label>Saldo actual</label><input id="startBalance" type="number" step="0.01" placeholder="0,00"></div><div class="field"><label>Colchón que no quieres tocar (opcional)</label><input id="startProtected" type="number" min="0" step="0.01" placeholder="0,00"></div>`,actions:`<button type="button" class="primary full" id="finishOnboarding">Empezar</button>`});
-  $('#finishOnboarding').onclick=()=>{state.initialBalance=Number($('#startBalance').value)||0;state.protectedBalance=Math.max(0,Number($('#startProtected').value)||0);state.onboarded=true;closeModal();saveState();toast('Tu espacio está listo');};
-}
-
-$$('.nav-item').forEach(b=>b.addEventListener('click',()=>{currentView=b.dataset.view;render();}));
-$('#quickAddBtn').addEventListener('click',()=>openTransaction());
-if('serviceWorker' in navigator) window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
-render();
-if(!state.onboarded) setTimeout(startOnboarding,180);
+setup();
+if('serviceWorker' in navigator && (location.protocol==='https:'||location.hostname==='localhost'))window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+try{const legacy=JSON.parse(localStorage.getItem('midinero_state_v1')||'null');if(legacy&&(legacy.transactions?.length||legacy.goals?.length||legacy.initialBalance)&&!db.txs.length)$('legacy-notice').style.display='block';}catch(e){}

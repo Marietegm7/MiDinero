@@ -1,58 +1,93 @@
 <!doctype html>
 <html lang="es">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#0b1020" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="MiDinero" />
-  <link rel="manifest" href="manifest.webmanifest?v=5" />
-  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
-  <link rel="stylesheet" href="styles.css?v=5" />
-  <title>MiDinero</title>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0b2029">
+<title>MiDinero — Tu plan financiero</title>
+<meta name="description" content="Tu presupuesto personal, ahorros y objetivos. Sin cuentas, sin servidores y con los datos guardados en tu dispositivo.">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="MiDinero">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+<link rel="icon" sizes="192x192" href="./icons/icon-192.png">
+<link rel="stylesheet" href="./styles.css">
 </head>
 <body>
-  <div id="app" class="app-shell">
-    <header class="topbar">
-      <div>
-        <p class="eyebrow">FINANZAS PERSONALES · v5</p>
-        <h1 id="viewTitle">Inicio</h1>
-      </div>
-      <button class="icon-button" id="quickAddBtn" aria-label="Añadir movimiento">＋</button>
-    </header>
-
-    <main id="mainContent" class="main-content" aria-live="polite"></main>
-
-    <nav class="bottom-nav" aria-label="Navegación principal">
-      <button data-view="dashboard" class="nav-item active"><span>⌂</span><small>Inicio</small></button>
-      <button data-view="transactions" class="nav-item"><span>↕</span><small>Movimientos</small></button>
-      <button data-view="goals" class="nav-item"><span>◎</span><small>Objetivos</small></button>
-      <button data-view="budgets" class="nav-item"><span>◫</span><small>Límites</small></button>
-      <button data-view="more" class="nav-item"><span>⋯</span><small>Más</small></button>
-    </nav>
-  </div>
-
-  <dialog id="modal" class="modal">
-    <form method="dialog" class="modal-card" id="modalForm">
-      <div class="modal-head">
-        <div>
-          <p class="eyebrow" id="modalEyebrow"></p>
-          <h2 id="modalTitle"></h2>
-        </div>
-        <button class="icon-button ghost" value="cancel" aria-label="Cerrar">×</button>
-      </div>
-      <div id="modalBody" class="modal-body"></div>
-      <div id="modalActions" class="modal-actions"></div>
-    </form>
-  </dialog>
-
-  <template id="toastTemplate">
-    <div class="toast" role="status"></div>
-  </template>
-
-  <script src="app.js?v=5"></script>
-  <script src="fix-recurring.js?v=5"></script>
-  <script src="shortcuts.js?v=5"></script>
+<div class="app">
+ <aside class="sidebar">
+  <div><div class="brand"><span class="brandmark">€</span> MiDinero</div><div class="tagline">Ahorra para tu futuro.</div></div>
+  <nav class="menu" aria-label="Navegación"><button class="nav-btn active" data-page="inicio"><span class="nav-icon">◫</span> Resumen</button><button class="nav-btn" data-page="movimientos"><span class="nav-icon">↔</span> Movimientos</button><button class="nav-btn" data-page="objetivos"><span class="nav-icon">◎</span> Mis objetivos</button><button class="nav-btn" data-page="ajustes"><span class="nav-icon">⚙</span> Ajustes</button></nav>
+  <div class="side-bottom"><strong>🔒 Tus finanzas, en tu navegador</strong>Todo se guarda solo en este dispositivo. No se mueve dinero real. Exporta copias de seguridad periódicamente.</div>
+ </aside>
+ <main class="main"><div id="legacy-notice" class="callout" style="display:none;margin-bottom:15px">Hay datos guardados de la versión anterior de MiDinero. La nueva versión no los ha borrado. Puedes <a href="./anterior/">abrir la versión anterior</a> para consultarlos o exportar una copia. Los movimientos no se migran automáticamente.</div>
+  <div class="top"><div><div class="eyebrow">MI CONTROL FINANCIERO</div><h1 id="page-title">Buenos días 👋</h1></div><div class="top-actions"><input id="month" type="month" class="pill" aria-label="Mes a consultar"><button class="button" id="addQuick">+ Nuevo movimiento</button></div></div>
+  <section id="inicio" class="screen active">
+   <div class="grid metric-grid">
+    <div class="card metric-highlight"><div class="metric-label">Dinero disponible en cuenta*</div><div class="metric-number" id="cash-val">0,00 €</div><div class="metric-foot">Según tus registros manuales</div></div>
+    <div class="card"><div class="metric-label">Ingresos del mes</div><div class="metric-number" id="income-val">0,00 €</div><div class="metric-foot">Sueldo previsto: <span id="income-exp">1.409 €</span></div></div>
+    <div class="card"><div class="metric-label">Gasto realizado este mes</div><div class="metric-number" id="spent-val">0,00 €</div><div class="metric-foot">No incluye ahorros apartados</div></div>
+    <div class="card"><div class="metric-label">Ahorrado este mes</div><div class="metric-number" id="saved-val">0,00 €</div><div class="metric-foot">Moto + colchón</div></div>
+   </div>
+   <div class="callout" id="pay-note">Tu próximo cobro está previsto entre el 28 y el 30. Regístralo cuando llegue.</div>
+   <div class="grid columns" style="margin-top:16px">
+    <div class="card daily-card"><div class="card-head"><h2>🧭 Tu gasto diario recomendado</h2><span class="badge">Orientativo</span></div><div class="daily-value" id="daily-limit">0 €</div><p class="small-note" id="daily-message"></p><div class="progress"><div class="fill cyan" id="leisure-progress"></div></div><div class="goal-row"><span id="leisure-used"></span><span id="leisure-left"></span></div></div>
+    <div class="card"><div class="card-head"><h2>📌 Tu plan en números</h2><span class="badge">Mensual</span></div><div class="planline"><span>Gasto de ocio recomendado</span><strong id="leisure-monthly"></strong></div><div class="planline"><span>Ahorro recomendado total</span><strong id="save-monthly"></strong></div><div class="planline"><span>Margen de seguridad</span><strong id="safety-monthly"></strong></div><p class="small-note">No gastes el presupuesto reservado para la moto o el colchón.</p></div>
+   </div>
+   <div class="grid columns" style="margin-top:16px">
+    <div class="card"><div class="card-head"><h2>🎯 Tus objetivos</h2><button class="button secondary small" data-goto="objetivos">Ver detalles →</button></div><div id="goals-dashboard"></div></div>
+    <div class="card"><div class="card-head"><h2>📆 Plan de cada mes</h2><span class="badge">Personalizado</span></div><div id="month-breakdown"></div><p class="small-note" id="plan-warning"></p></div>
+   </div>
+   <div class="grid budget-layout">
+    <div class="card"><div class="card-head"><h2>Presupuesto vs. gasto real</h2><span class="badge" id="current-month-label"></span></div><div id="budget-list"></div></div>
+    <div class="card"><div class="card-head"><h2>Próximos pasos</h2></div><div class="upcoming" id="upcoming"></div><p class="small-note" style="margin-top:15px">Los cobros y ahorros se contabilizan solo cuando los registras. Ninguna acción mueve dinero real.</p></div>
+   </div>
+   <div class="card"><div class="card-head"><h2>Últimos movimientos</h2><button class="button secondary small" data-goto="movimientos">Ver todos →</button></div><div id="recent-txs"></div></div>
+   <p class="small-note">* El saldo es una estimación: parte de 0 € y solo cambia con los ingresos, gastos y ahorros que registres. Si tu cuenta ya tenía dinero, añádelo en Ajustes.</p>
+  </section>
+  <section id="movimientos" class="screen">
+   <div class="headerline"><div><h2 style="margin:0 0 5px">Registrar un movimiento</h2><span class="navhint">Añade los gastos cuando ocurren. No se conecta a tu banco.</span></div></div>
+   <div class="card" style="margin-bottom:16px"><form id="tx-form"><div class="form-grid">
+      <div class="field"><label for="tx-type">Tipo de movimiento</label><select id="tx-type"><option value="expense">Gasto</option><option value="income">Ingreso</option><option value="saving">Apartar dinero para ahorrar</option></select></div>
+      <div class="field"><label for="tx-amount">Importe (€)</label><input id="tx-amount" required type="number" min="0.01" step="0.01" placeholder="Ej.: 12,50"></div>
+      <div class="field"><label for="tx-category">Categoría / destino</label><select id="tx-category"></select></div>
+      <div class="field"><label for="tx-date">Fecha</label><input id="tx-date" type="date" required></div>
+      <div class="field" style="grid-column:1/-1"><label for="tx-note">Descripción (opcional)</label><input id="tx-note" maxlength="90" placeholder="Ej.: gasolina de esta semana"></div>
+   </div><div class="actions"><button class="button" type="submit">Guardar movimiento</button><button class="button secondary" id="pay-button" type="button">✓ He cobrado la nómina</button></div></form></div>
+   <div class="card"><div class="card-head"><h2>Historial</h2><span class="badge" id="tx-count"></span></div><div id="all-txs"></div></div>
+  </section>
+  <section id="objetivos" class="screen">
+   <div class="callout">Primero construimos seguridad financiera y reunimos el dinero de la moto. Para una compra con fecha cercana, prioriza el ahorro disponible sobre inversiones volátiles.</div>
+   <div class="grid columns" style="margin-top:16px"><div class="card"><div class="card-head"><h2>🏍️ Mi moto</h2><span class="badge">11 sep 2027</span></div><div id="moto-detail"></div><div class="actions"><button class="button" data-save="moto">+ Registrar ahorro para moto</button></div></div>
+   <div class="card"><div class="card-head"><h2>🛟 Mi colchón</h2><span class="badge">Primera fase</span></div><div id="emergency-detail"></div><div class="actions"><button class="button" data-save="emergency">+ Registrar ahorro para colchón</button></div></div></div>
+   <div class="card"><div class="card-head"><h2>Tu hoja de ruta</h2></div><div id="projection"></div><p class="small-note" style="margin-top:14px">Las previsiones asumen que puedes mantener las aportaciones cada mes. El objetivo de moto no incluye posibles costes de casco, equipamiento, seguro, impuestos o cambio de titularidad.</p></div>
+  </section>
+  <section id="ajustes" class="screen">
+   <div class="callout">Puedes modificar importes sin perder movimientos anteriores. Los cambios afectan al presupuesto previsto, no reescriben gastos ya registrados. Tu nómina no se añade automáticamente: confírmala cuando cobres entre el día 28 y el 30.</div>
+   <div class="card" style="margin-top:16px"><h2 style="margin-bottom:17px">Personalizar mi plan</h2><form id="settings-form"><p class="edit-heading">INGRESOS Y VIVIENDA</p><div class="form-grid">
+       <div class="field"><label for="s-income">Sueldo neto mensual (€)</label><input id="s-income" type="number" min="0" step="0.01" required></div>
+       <div class="field"><label for="s-opening">Saldo inicial en cuenta (€)</label><input id="s-opening" type="number" step="0.01" required></div>
+       <div class="field"><label for="s-payfrom">Cobro desde el día</label><input id="s-payfrom" type="number" min="1" max="31" step="1" required></div>
+       <div class="field"><label for="s-payto">Cobro hasta el día</label><input id="s-payto" type="number" min="1" max="31" step="1" required></div>
+       <div class="field"><label for="s-housing">Vivienda (€ / mes)</label><input id="s-housing" type="number" min="0" step="0.01" required></div>
+       <div class="field"><label for="s-fuel">Gasolina (€ / mes)</label><input id="s-fuel" type="number" min="0" step="0.01" required></div>
+       <div class="field"><label for="s-insurance">Seguro coche (€ / mes)</label><input id="s-insurance" type="number" min="0" step="0.01" required></div>
+       <div class="field"><label for="s-installment">Cuota pendiente (€ / mes, hasta abril 2027)</label><input id="s-installment" type="number" min="0" step="0.01" required></div>
+       <div class="field"><label for="s-essentials">Gastos personales necesarios (€ / mes)</label><input id="s-essentials" type="number" min="0" step="0.01" required></div>
+       <div class="field"><label for="s-leisure">Ocio y caprichos (€ / mes)</label><input id="s-leisure" type="number" min="0" step="0.01" required></div>
+   </div><p class="edit-heading" style="margin-top:25px">AHORRO Y METAS</p><div class="form-grid">
+       <div class="field"><label for="s-moto-monthly">Ahorro moto cada mes (€)</label><input id="s-moto-monthly" type="number" min="0" step="0.01" required></div>
+       <div class="field"><label for="s-emergency-monthly">Ahorro colchón cada mes (€)</label><input id="s-emergency-monthly" type="number" min="0" step="0.01" required></div>
+       <div class="field"><label for="s-moto-goal">Precio objetivo moto (€)</label><input id="s-moto-goal" type="number" min="1" step="0.01" required></div>
+       <div class="field"><label for="s-emergency-goal">Primer objetivo colchón (€)</label><input id="s-emergency-goal" type="number" min="1" step="0.01" required></div>
+       <div class="field"><label for="s-moto-date">Fecha límite moto</label><input id="s-moto-date" type="date" required></div>
+   </div><div class="actions"><button class="button" type="submit">Guardar mi presupuesto</button><button class="button secondary" type="button" id="reset-budget">Restablecer importes recomendados</button></div></form></div>
+   <div class="card" style="margin-top:16px"><h2 style="margin-bottom:12px">Mis datos y copias de seguridad</h2><p class="detail">Los datos se guardan solo en este navegador mediante almacenamiento local. No hay registro de usuario, servidor, cifrado de tus registros ni conexión bancaria. Si borras los datos del navegador, podrías perderlos. Exporta un archivo de copia de seguridad y guárdalo en un lugar privado.</p><div class="actions"><button class="button secondary" id="export-data">↓ Exportar copia JSON</button><button class="button secondary" id="export-csv">↓ Exportar movimientos CSV</button><button class="button secondary" id="import-button">↑ Importar copia</button><input type="file" id="import-file" accept="application/json,.json"><button class="button danger" id="clear-data">Borrar todos mis datos</button></div></div>
+  </section>
+ </main>
+</div>
+<nav class="mobilebar" aria-label="Menú móvil"><button class="active" data-page="inicio"><span>◫</span> Inicio</button><button data-page="movimientos"><span>↔</span> Gastos</button><button data-page="objetivos"><span>◎</span> Metas</button><button data-page="ajustes"><span>⚙</span> Ajustes</button></nav>
+<div class="toast" role="status" id="toast"></div>
+<script defer src="./app.js"></script>
 </body>
 </html>

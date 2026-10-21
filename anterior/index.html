@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b1020" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="MiDinero" />
+  <link rel="manifest" href="manifest.webmanifest?v=5" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="stylesheet" href="styles.css?v=5" />
+  <title>MiDinero</title>
+</head>
+<body>
+  <div id="app" class="app-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">FINANZAS PERSONALES · v5</p>
+        <h1 id="viewTitle">Inicio</h1>
+      </div>
+      <button class="icon-button" id="quickAddBtn" aria-label="Añadir movimiento">＋</button>
+    </header>
+
+    <main id="mainContent" class="main-content" aria-live="polite"></main>
+
+    <nav class="bottom-nav" aria-label="Navegación principal">
+      <button data-view="dashboard" class="nav-item active"><span>⌂</span><small>Inicio</small></button>
+      <button data-view="transactions" class="nav-item"><span>↕</span><small>Movimientos</small></button>
+      <button data-view="goals" class="nav-item"><span>◎</span><small>Objetivos</small></button>
+      <button data-view="budgets" class="nav-item"><span>◫</span><small>Límites</small></button>
+      <button data-view="more" class="nav-item"><span>⋯</span><small>Más</small></button>
+    </nav>
+  </div>
+
+  <dialog id="modal" class="modal">
+    <form method="dialog" class="modal-card" id="modalForm">
+      <div class="modal-head">
+        <div>
+          <p class="eyebrow" id="modalEyebrow"></p>
+          <h2 id="modalTitle"></h2>
+        </div>
+        <button class="icon-button ghost" value="cancel" aria-label="Cerrar">×</button>
+      </div>
+      <div id="modalBody" class="modal-body"></div>
+      <div id="modalActions" class="modal-actions"></div>
+    </form>
+  </dialog>
+
+  <template id="toastTemplate">
+    <div class="toast" role="status"></div>
+  </template>
+
+  <script src="app.js?v=5"></script>
+  <script src="fix-recurring.js?v=5"></script>
+  <script src="shortcuts.js?v=5"></script>
+</body>
+</html>
