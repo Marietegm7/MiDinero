@@ -83,7 +83,7 @@ function updateTxCategory(){
 function makeId(){return typeof crypto!=='undefined'&&crypto.randomUUID?crypto.randomUUID():'t'+Date.now()+'-'+Math.random().toString(36).slice(2)}
 function addTx({type,amount,date,category,note}){
  amount=money(amount);
- if(!Number.isFinite(amount)||amount<=0||!/^\\d{4}-\\d{2}-\\d{2}$/.test(date))return toast('Indica una fecha y un importe válido.');
+ if(!Number.isFinite(amount)||amount<=0||!/^\d{4}-\d{2}-\d{2}$/.test(date))return toast('Indica una fecha y un importe válido.');
  if(type==='saving'&&amount>cashBalance()+0.001)return toast('No puedes apartar más dinero del que hay en el saldo registrado. Registra primero tu cobro.');
  if(type==='withdrawal'&&(category!=='emergency'||date>localDate()))return toast('Solo puedes registrar retiradas del colchón que ya hayan ocurrido.');
  if(type==='withdrawal'&&!String(note||'').trim())return toast('Indica el motivo de la retirada para registrarla.');
